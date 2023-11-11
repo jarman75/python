@@ -1,23 +1,38 @@
-from fastapi import FastAPI
-from typing import Union
+from fastapi import Depends, FastAPI 
+from fastapi.security import OAuth2PasswordBearer
+from typing import Union, Annotated
 from pydantic import BaseModel
 
+
 app = FastAPI()
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 class Item(BaseModel):
     name: str
     price: float
     is_offer: Union[bool, None] = None
 
-@app.get("/")
-def read_root():
-    return {"Hello": "World"}
+class User(BaseModel):
+    userName: str
+    email: str | None = None
+    full_name: str | None = None
+    disabled: bool | None = None
 
+def fake_decode_token(token):
+    return User(
+        userName=token + "fakedecoded", email="john@example.com", full_name="John Doe"
+    )
 
-@app.get("/items/{item_id}")
-def read_item(item_id: int, q: Union[str, None] = None):
-    return {"item_id": item_id, "q": q}
+async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
+    user = fake_decode_token(token)
+    return user
 
-@app.put("/items/{item_id}")
-def update_item(item_id: int, item: Item):
-    return {"item_name": item.name, "price": item.price, "item_id": item_id}
+@app.get("/users/me")
+async def read_users_me(current_user: Annotated[User, Depends(get_current_user)]):
+    return current_user
+
+@app.get("/items/")
+async def read_items(token: Annotated[str, Depends(oauth2_scheme)]):
+    return {"token": token}
+
